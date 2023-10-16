@@ -1,6 +1,6 @@
 import bpy
 from bpy.types import Operator
-from bpy.props import StringProperty
+from bpy.props import StringProperty, FloatProperty
 
 class OBJECT_PT_SimpleShapeGeneratorPanel(bpy.types.Panel):
     bl_label = "Simple Shape Generator"
@@ -8,7 +8,6 @@ class OBJECT_PT_SimpleShapeGeneratorPanel(bpy.types.Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = 'Tool'
-
 
     def draw(self, context):
         layout = self.layout
@@ -30,26 +29,44 @@ class CreateSimpleShapeOperator(Operator):
         description="Enter a name for the new shape",
         default="pizza",
     )
+    x_coordinate: FloatProperty(
+        name="X Coordinate",
+        description="X coordinate for the shape",
+        default=0,
+    )
+    y_coordinate: FloatProperty(
+        name="Y Coordinate",
+        description="Y coordinate for the shape",
+        default=0,
+    )
+    z_coordinate: FloatProperty(
+        name="Z Coordinate",
+        description="Z coordinate for the shape",
+        default=0,
+    )
 
     def invoke(self, context, event):
-        # Open the custom modal dialog to get the shape name
+        # Open the custom modal dialog to get the shape name and coordinates
         return context.window_manager.invoke_props_dialog(self, width=300)
 
     def execute(self, context):
         shape_type = context.scene.shape_type
         new_name = self.new_shape_name
+        x_coord = self.x_coordinate
+        y_coord = self.y_coordinate
+        z_coord = self.z_coordinate
 
         if shape_type == 'CIRCLE':
-            bpy.ops.mesh.primitive_circle_add(vertices=32, radius=1, location=(0, 0, 0))
+            bpy.ops.mesh.primitive_circle_add(vertices=32, radius=1, location=(x_coord, y_coord, z_coord))
         elif shape_type == 'CUBE':
-            bpy.ops.mesh.primitive_cube_add(size=1, enter_editmode=False, align='WORLD', location=(0, 0, 0))
+            bpy.ops.mesh.primitive_cube_add(size=1, enter_editmode=False, align='WORLD', location=(x_coord, y_coord, z_coord))
         elif shape_type == 'SPHERE':
-            bpy.ops.mesh.primitive_uv_sphere_add(radius=1, location=(0, 0, 0))
+            bpy.ops.mesh.primitive_uv_sphere_add(radius=1, location=(x_coord, y_coord, z_coord))
 
         # Rename the newly created object
         bpy.context.active_object.name = new_name
 
-        self.report({'INFO'}, f'Shape name: {new_name}')
+        self.report({'INFO'}, f'Shape name: {new_name}, Position: ({x_coord}, {y_coord}, {z_coord})')
 
         return {'FINISHED'}
 
