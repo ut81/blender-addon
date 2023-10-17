@@ -3,6 +3,7 @@ from bpy.types import Operator
 from bpy.props import StringProperty, FloatProperty
 
 class OBJECT_PT_SimpleShapeGeneratorPanel(bpy.types.Panel):
+    
     bl_label = "Simple Shape Generator"
     bl_idname = "OBJECT_PT_SimpleShapeGeneratorPanel"
     bl_space_type = 'VIEW_3D'
@@ -18,6 +19,7 @@ class OBJECT_PT_SimpleShapeGeneratorPanel(bpy.types.Panel):
 
         # Button to create the selected shape
         layout.operator("object.create_simple_shape", text="Create Shape")
+
 
 class CreateSimpleShapeOperator(Operator):
     bl_idname = "object.create_simple_shape"
@@ -45,6 +47,19 @@ class CreateSimpleShapeOperator(Operator):
         default=0,
     )
 
+    def validate_name(self, context, new_name):
+        # Check if the name is valid (e.g., does not contain special characters)
+        if not new_name.isalnum():
+            self.report({'ERROR'}, "Shape name contains invalid characters. Please use letters and numbers only.")
+            return False
+
+        # Check if the name already exists in the scene
+        if new_name in bpy.data.objects:
+            self.report({'ERROR'}, f"A shape with the name '{new_name}' already exists. Please choose a different name.")
+            return False
+
+        return True
+
     def invoke(self, context, event):
         # Open the custom modal dialog to get the shape name and coordinates
         return context.window_manager.invoke_props_dialog(self, width=300)
@@ -55,6 +70,10 @@ class CreateSimpleShapeOperator(Operator):
         x_coord = self.x_coordinate
         y_coord = self.y_coordinate
         z_coord = self.z_coordinate
+
+        # Validate the shape name
+        if not self.validate_name(context, new_name):
+            return {'CANCELLED'}
 
         if shape_type == 'CIRCLE':
             bpy.ops.mesh.primitive_circle_add(vertices=32, radius=1, location=(x_coord, y_coord, z_coord))
@@ -69,6 +88,7 @@ class CreateSimpleShapeOperator(Operator):
         self.report({'INFO'}, f'Shape name: {new_name}, Position: ({x_coord}, {y_coord}, {z_coord})')
 
         return {'FINISHED'}
+
 
 def register():
     bpy.utils.register_class(OBJECT_PT_SimpleShapeGeneratorPanel)
