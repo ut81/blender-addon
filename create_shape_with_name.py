@@ -46,6 +46,11 @@ class CreateSimpleShapeOperator(Operator):
         description="Z coordinate for the shape",
         default=0,
     )
+    scale_factor: FloatProperty(
+        name="Scale Factor",
+        description="Scale factor for the shape",
+        default=1.0,
+    )
 
     def validate_name(self, context, new_name):
         # Check if the name is valid (e.g., does not contain special characters)
@@ -70,25 +75,28 @@ class CreateSimpleShapeOperator(Operator):
         x_coord = self.x_coordinate
         y_coord = self.y_coordinate
         z_coord = self.z_coordinate
+        scale_factor = self.scale_factor
 
         # Validate the shape name
         if not self.validate_name(context, new_name):
             return {'CANCELLED'}
 
         if shape_type == 'CIRCLE':
-            bpy.ops.mesh.primitive_circle_add(vertices=32, radius=1, location=(x_coord, y_coord, z_coord))
+            
+            bpy.ops.mesh.primitive_circle_add(vertices=32, radius=1 * scale_factor, location=(x_coord, y_coord, z_coord))
+           
+           
         elif shape_type == 'CUBE':
-            bpy.ops.mesh.primitive_cube_add(size=1, enter_editmode=False, align='WORLD', location=(x_coord, y_coord, z_coord))
+            bpy.ops.mesh.primitive_cube_add(size=1 * scale_factor, enter_editmode=False, align='WORLD', location=(x_coord, y_coord, z_coord))
         elif shape_type == 'SPHERE':
-            bpy.ops.mesh.primitive_uv_sphere_add(radius=1, location=(x_coord, y_coord, z_coord))
+            bpy.ops.mesh.primitive_uv_sphere_add(radius=1 * scale_factor, location=(x_coord, y_coord, z_coord))
 
         # Rename the newly created object
         bpy.context.active_object.name = new_name
 
-        self.report({'INFO'}, f'Shape name: {new_name}, Position: ({x_coord}, {y_coord}, {z_coord})')
+        self.report({'INFO'}, f'Shape name: {new_name}, Position: ({x_coord}, {y_coord}, {z_coord}), Scale: {scale_factor}')
 
         return {'FINISHED'}
-
 
 def register():
     bpy.utils.register_class(OBJECT_PT_SimpleShapeGeneratorPanel)
