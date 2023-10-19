@@ -1,3 +1,17 @@
+bl_info = {
+    "name": "ShapeWizard",
+    "author": "ut",
+    "version": (1, 0),
+    "blender": (2, 80, 0),
+    "location": "View3D > Add > Mesh > New Object",
+    "description": "Implies expertise in shape creation, including naming, positioning, and scaling.",
+    "warning": "",
+    "doc_url": "",
+    "category": "Add Mesh",
+}
+
+
+
 import bpy
 from bpy.types import Operator
 from bpy.props import StringProperty, FloatProperty
