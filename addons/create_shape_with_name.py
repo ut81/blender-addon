@@ -1,20 +1,17 @@
 bl_info = {
-    "name": "ShapeWizard",
+    "name": "ColorCraft Pro",
     "author": "ut",
     "version": (1, 0),
     "blender": (2, 80, 0),
     "location": "View3D > Add > Mesh > New Object",
-    "description": "Implies expertise in shape creation, including naming, positioning, and scaling.",
+    "description": "Adds a new color Mesh Object",
     "warning": "",
     "doc_url": "",
     "category": "Add Mesh",
 }
-
-
-
 import bpy
 from bpy.types import Operator
-from bpy.props import StringProperty, FloatProperty
+from bpy.props import StringProperty, FloatProperty, FloatVectorProperty
 
 class OBJECT_PT_SimpleShapeGeneratorPanel(bpy.types.Panel):
     
@@ -31,9 +28,13 @@ class OBJECT_PT_SimpleShapeGeneratorPanel(bpy.types.Panel):
         layout.label(text="Select Shape:")
         layout.prop(context.scene, "shape_type")
 
+        # Color selection
+        layout.label(text="Shape Color:")
+        layout.prop(context.scene.new_shape_operator, "shape_color", text="")
+
+       
         # Button to create the selected shape
         layout.operator("object.create_simple_shape", text="Create Shape")
-
 
 class CreateSimpleShapeOperator(Operator):
     bl_idname = "object.create_simple_shape"
@@ -60,12 +61,31 @@ class CreateSimpleShapeOperator(Operator):
         description="Z coordinate for the shape",
         default=0,
     )
+    create_camera: bpy.props.BoolProperty(
+        name="Create Camera",
+        description="Create a new camera",
+        default=False,
+    )
+    create_light: bpy.props.BoolProperty(
+        name="Create Light",
+        description="Create a new light",
+        default=False,
+    )
+    light_type: bpy.props.EnumProperty(
+        name="Light Type",
+        description="Type of light to create",
+        items=[('POINT', 'Point', 'Point light source'),
+               ('SUN', 'Sun', 'Sunlight'),
+               ('SPOT', 'Spot', 'Spotlight'),
+               ('AREA', 'Area', 'Area light')],
+        default='POINT',
+    )
     scale_factor: FloatProperty(
         name="Scale Factor",
         description="Scale factor for the shape",
         default=1.0,
     )
-
+    
     def validate_name(self, context, new_name):
         # Check if the name is valid (e.g., does not contain special characters)
         if not new_name.isalnum():
@@ -82,7 +102,6 @@ class CreateSimpleShapeOperator(Operator):
     def invoke(self, context, event):
         # Open the custom modal dialog to get the shape name and coordinates
         return context.window_manager.invoke_props_dialog(self, width=300)
-
     def execute(self, context):
         shape_type = context.scene.shape_type
         new_name = self.new_shape_name
@@ -96,22 +115,51 @@ class CreateSimpleShapeOperator(Operator):
             return {'CANCELLED'}
 
         if shape_type == 'CIRCLE':
-            
-            bpy.ops.mesh.primitive_circle_add(vertices=32, radius=1 * scale_factor, location=(x_coord, y_coord, z_coord))
-           
-           
+            circle = bpy.ops.mesh.primitive_circle_add(vertices=32, radius=1 * scale_factor, location=(x_coord, y_coord, z_coord))
         elif shape_type == 'CUBE':
-            bpy.ops.mesh.primitive_cube_add(size=1 * scale_factor, enter_editmode=False, align='WORLD', location=(x_coord, y_coord, z_coord))
+            cube = bpy.ops.mesh.primitive_cube_add(size=1 * scale_factor, enter_editmode=False, align='WORLD', location=(x_coord, y_coord, z_coord))
         elif shape_type == 'SPHERE':
-            bpy.ops.mesh.primitive_uv_sphere_add(radius=1 * scale_factor, location=(x_coord, y_coord, z_coord))
+            sphere = bpy.ops.mesh.primitive_uv_sphere_add(radius=1 * scale_factor, location=(x_coord, y_coord, z_coord))
 
         # Rename the newly created object
         bpy.context.active_object.name = new_name
+        active_object = bpy.context.active_object
+        active_object.data.materials.clear()
+        mat = bpy.data.materials.new(name="Shape_Material")
+        active_object.data.materials.append(mat)
+        
+        # Access the shape_color property through new_shape_operator
+        mat.diffuse_color = context.scene.new_shape_operator.shape_color
 
-        self.report({'INFO'}, f'Shape name: {new_name}, Position: ({x_coord}, {y_coord}, {z_coord}), Scale: {scale_factor}')
+
+        if self.create_camera:
+            
+            bpy.ops.object.camera_add(enter_editmode=False, align='VIEW', location=(x_coord + 5, y_coord + 5, z_coord + 5))
+    
+    # Create a light if selected
+        if self.create_light:
+            if self.light_type == 'POINT':
+                bpy.ops.object.light_add(type='POINT', radius=1, align='WORLD', location=(x_coord - 5, y_coord - 5, z_coord + 5))
+            elif self.light_type == 'SUN':
+                bpy.ops.object.light_add(type='SUN', align='WORLD', location=(x_coord - 5, y_coord - 5, z_coord + 5))
+            elif self.light_type == 'SPOT':
+                bpy.ops.object.light_add(type='SPOT', align='WORLD', location=(x_coord - 5, y_coord - 5, z_coord + 5))
+            elif self.light_type == 'AREA':
+                bpy.ops.object.light_add(type='AREA', radius=1, align='WORLD', location=(x_coord - 5, y_coord - 5, z_coord + 5))
+
+
+        self.report({'INFO'}, f'Shape name: {new_name}, Position: ({x_coord}, {y_coord}, {z_coord}), Scale: {scale_factor}, Color: {context.scene.new_shape_operator.shape_color}')
 
         return {'FINISHED'}
-
+class ColorProperties(bpy.types.PropertyGroup):
+    shape_color: FloatVectorProperty(
+        name="Shape Color",
+        subtype='COLOR',
+        size=4,
+        default=(1.0, 0.0, 0.0, 1.0),
+        min=0.0,
+        max=1.0,
+    )
 def register():
     bpy.utils.register_class(OBJECT_PT_SimpleShapeGeneratorPanel)
     bpy.utils.register_class(CreateSimpleShapeOperator)
@@ -120,13 +168,20 @@ def register():
         name="Shape Type",
         default='CIRCLE'
     )
-    bpy.types.Scene.new_shape_name = bpy.props.StringProperty()
+
+    bpy.utils.register_class(ColorProperties)
+    bpy.types.Scene.new_shape_operator = bpy.props.PointerProperty(type=ColorProperties)
 
 def unregister():
     bpy.utils.unregister_class(OBJECT_PT_SimpleShapeGeneratorPanel)
     bpy.utils.unregister_class(CreateSimpleShapeOperator)
     del bpy.types.Scene.shape_type
-    del bpy.types.Scene.new_shape_name
+    del bpy.types.Scene.new_shape_operator
+    bpy.utils.unregister_class(ColorProperties)
 
 if __name__ == "__main__":
     register()
+
+
+
+
