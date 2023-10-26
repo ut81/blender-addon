@@ -11,9 +11,6 @@ bl_info = {
 }
 
 
-
-
-
 import bpy
 from bpy.types import Operator
 from bpy.props import StringProperty, FloatProperty,FloatVectorProperty
@@ -53,7 +50,6 @@ class OBJECT_PT_SimpleShapeGeneratorPanel(bpy.types.Panel):
             
             # Button to create the selected shape
             layout.operator("object.create_simple_shape", text="Create Shape")
-
 
 
        
@@ -120,7 +116,6 @@ class CreateSimpleShapeOperator(Operator):
     def draw(self, context):
         layout = self.layout
         shape_type = context.scene.shape_type
-
         layout.prop(self, "new_shape_name")
         layout.prop(self, "x_coordinate")
         layout.prop(self, "y_coordinate")
@@ -212,11 +207,6 @@ class CreateSimpleShapeOperator(Operator):
             elif self.light_type == 'AREA':
                 bpy.ops.object.light_add(type='AREA', radius=1, align='WORLD', location=(x_coord - 5, y_coord - 5, z_coord + 5))
 
-        
-
-
-
-
         self.report({'INFO'}, f'Shape name: {new_name}, Position: ({x_coord}, {y_coord}, {z_coord}), Scale: {scale_factor}, Color: {context.scene.new_shape_operator.shape_color}')
 
         return {'FINISHED'}
@@ -252,7 +242,6 @@ def register():
     name="Shape Type",
     default='CIRCLE'
     )
-
 
     bpy.utils.register_class(ColorProperties)
     bpy.types.Scene.new_shape_operator = bpy.props.PointerProperty(type=ColorProperties)
