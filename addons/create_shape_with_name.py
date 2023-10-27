@@ -1,5 +1,5 @@
 bl_info = {
-    "name": "Sculpture Craft",
+    "name": "Sculpture Craft 2.0",
     "author": "ut",
     "version": (1, 0),
     "blender": (2, 80, 0),
@@ -9,6 +9,9 @@ bl_info = {
     "doc_url": "",
     "category": "Add Mesh",
 }
+
+
+
 
 
 import bpy
@@ -41,6 +44,7 @@ class OBJECT_PT_SimpleShapeGeneratorPanel(bpy.types.Panel):
             layout.operator("object.load_background_image", text="Load Background Image", icon='IMAGE_DATA')
             
             layout.operator("object.load_reference_image", text="Load Reference Image", icon='IMAGE_DATA')
+            layout.operator("object.import_glb", text="Import GLB", icon='IMPORT')
 
             
         if context.scene.shape_type != 'CUSTOM':
@@ -50,6 +54,7 @@ class OBJECT_PT_SimpleShapeGeneratorPanel(bpy.types.Panel):
             
             # Button to create the selected shape
             layout.operator("object.create_simple_shape", text="Create Shape")
+
 
 
        
@@ -116,6 +121,7 @@ class CreateSimpleShapeOperator(Operator):
     def draw(self, context):
         layout = self.layout
         shape_type = context.scene.shape_type
+
         layout.prop(self, "new_shape_name")
         layout.prop(self, "x_coordinate")
         layout.prop(self, "y_coordinate")
@@ -207,6 +213,11 @@ class CreateSimpleShapeOperator(Operator):
             elif self.light_type == 'AREA':
                 bpy.ops.object.light_add(type='AREA', radius=1, align='WORLD', location=(x_coord - 5, y_coord - 5, z_coord + 5))
 
+        
+
+
+
+
         self.report({'INFO'}, f'Shape name: {new_name}, Position: ({x_coord}, {y_coord}, {z_coord}), Scale: {scale_factor}, Color: {context.scene.new_shape_operator.shape_color}')
 
         return {'FINISHED'}
@@ -223,10 +234,93 @@ class ColorProperties(bpy.types.PropertyGroup):
     )
 
 
+class ImportGLBOperator(bpy.types.Operator):
+    bl_idname = "object.import_glb"
+    bl_label = "Import GLB"
+
+    filepath: bpy.props.StringProperty(subtype="FILE_PATH")
+
+    def execute(self, context):
+        try:
+            bpy.ops.import_scene.gltf(filepath=self.filepath)
+        except Exception as e:
+            self.report({'ERROR'}, f"Error importing GLB file: {str(e)}")
+            return {'CANCELLED'}
+
+        self.report({'INFO'}, f"Imported GLB file: {self.filepath}")
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+class LightPropertiesPanel(bpy.types.Panel):
+    bl_label = "Light Properties"
+    bl_idname = "OBJECT_PT_LightPropertiesPanel"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Tool'
+
+    def draw(self, context):
+        layout = self.layout
+
+        for obj in bpy.context.scene.collection.all_objects:
+            if obj.type == 'LIGHT':
+                layout.label(text="Light Properties for " + obj.name)
+                layout.prop(obj.data, "type", text="Light Type")
+                layout.prop(obj.data, "color", text="Light Color")
+                layout.prop(obj.data, "energy", text="Strength")
+                
+                
+                
+class ExportPanel(bpy.types.Panel):
+    bl_label = "Export Options"
+    bl_idname = "OBJECT_PT_ExportPanel"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Tool'
+
+    def draw(self, context):
+        layout = self.layout
+
+        # Export as .STL button
+        layout.operator("export_mesh.stl", text="Export as .STL")
+
+        # Export as .glb button
+        layout.operator("export_scene.gltf", text="Export as .glb")
+
+        # Export with custom path, filename, and format
+        layout.label(text="Export with Custom Path, Filename, and Format:")
+        layout.prop(context.scene, "export_path")
+        layout.prop(context.scene, "export_filename")
+        layout.prop(context.scene, "export_format")
+
+        # Export button
+        layout.operator("export_scene.export_with_options", text="Export")
+        
+class ExportWithOptionsOperator(bpy.types.Operator):
+    bl_idname = "export_scene.export_with_options"
+    bl_label = "Export with Custom Path, Filename, and Format"
+    
+    def execute(self, context):
+        export_path = context.scene.export_path
+        export_filename = context.scene.export_filename
+
+        if context.scene.export_format == 'STL':
+            bpy.ops.export_mesh.stl(filepath=export_path + export_filename + '.stl')
+            self.report({'INFO'}, f'Exported {export_filename}.stl to {export_path}')
+
+        elif context.scene.export_format == 'GLB':
+            bpy.ops.export_scene.gltf(filepath=export_path + export_filename + '.glb', export_format='GLB')
+            self.report({'INFO'}, f'Exported {export_filename}.glb to {export_path}')
+
+        return {'FINISHED'}
 
 def register():
     bpy.utils.register_class(OBJECT_PT_SimpleShapeGeneratorPanel)
     bpy.utils.register_class(CreateSimpleShapeOperator)
+    bpy.utils.register_class(ImportGLBOperator)
+    bpy.utils.register_class(LightPropertiesPanel)
+
     bpy.types.Scene.shape_type = bpy.props.EnumProperty(
     items=[('CIRCLE', 'Circle', 'Create a circle'),
            ('CUBE', 'Cube', 'Create a cube'),
@@ -245,13 +339,42 @@ def register():
 
     bpy.utils.register_class(ColorProperties)
     bpy.types.Scene.new_shape_operator = bpy.props.PointerProperty(type=ColorProperties)
+    
+    
+    bpy.types.Scene.export_path = bpy.props.StringProperty(name="Export Path", default="", subtype='FILE_PATH')
+    bpy.types.Scene.export_filename = bpy.props.StringProperty(name="Export Filename", default="custom_export")
+    bpy.types.Scene.export_format = bpy.props.EnumProperty(
+        name="Export Format",
+        items=[
+            ('STL', 'STL', 'Export as .STL'),
+            ('GLB', 'GLB', 'Export as .glb')
+        ],
+        default='STL'
+    )
+
+    bpy.utils.register_class(ExportPanel)
+    bpy.utils.register_class(ExportWithOptionsOperator)
 
 
 def unregister():
     bpy.utils.unregister_class(OBJECT_PT_SimpleShapeGeneratorPanel)
     bpy.utils.unregister_class(CreateSimpleShapeOperator)
+    bpy.utils.unregister_class(ImportGLBOperator)
+    bpy.utils.register_class(LightPropertiesPanel)
+
     del bpy.types.Scene.shape_type
     del bpy.types.Scene.new_shape_operator
     bpy.utils.unregister_class(ColorProperties)
+    
+    
+    bpy.utils.unregister_class(ExportPanel)
+    bpy.utils.unregister_class(ExportWithOptionsOperator)  # Unregister the custom export operator
+    del bpy.types.Scene.export_path
+    del bpy.types.Scene.export_filename
+    del bpy.types.Scene.export_format
+    
+    
+    
+    
 if __name__ == "__main__":
     register()
