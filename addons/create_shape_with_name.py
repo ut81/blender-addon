@@ -1,5 +1,5 @@
 bl_info = {
-    "name": "Sculpture Craft 2.0",
+    "name": "Sculpture Craft 3.0",
     "author": "ut",
     "version": (1, 0),
     "blender": (2, 80, 0),
@@ -10,17 +10,13 @@ bl_info = {
     "category": "Add Mesh",
 }
 
-
-
-
-
 import bpy
 from bpy.types import Operator
 from bpy.props import StringProperty, FloatProperty,FloatVectorProperty
 import os
 
 class OBJECT_PT_SimpleShapeGeneratorPanel(bpy.types.Panel):
-    
+
     bl_label = "Simple Shape Generator"
     bl_idname = "OBJECT_PT_SimpleShapeGeneratorPanel"
     bl_space_type = 'VIEW_3D'
@@ -36,28 +32,29 @@ class OBJECT_PT_SimpleShapeGeneratorPanel(bpy.types.Panel):
         # Conditionally show the import operator button for the "CUSTOM" shape type
 
         if context.scene.shape_type == 'CUSTOM':
-            
+
             layout.label(text="Import Custom Shape:")
             layout.operator("import_mesh.stl", text="Import STL", icon='FILE_NEW')
             layout.operator("import_image.to_plane", text="Import Image as Plane", icon='IMAGE_DATA')
             # Custom operator to load a background image
             layout.operator("object.load_background_image", text="Load Background Image", icon='IMAGE_DATA')
-            
             layout.operator("object.load_reference_image", text="Load Reference Image", icon='IMAGE_DATA')
+            layout.operator("object.open_camera_background_image", text="Set Camera Background Image", icon='IMAGE_DATA')
             layout.operator("object.import_glb", text="Import GLB", icon='IMPORT')
 
-            
+
         if context.scene.shape_type != 'CUSTOM':
-             # Color selection
             layout.label(text="Shape Color:")
             layout.prop(context.scene.new_shape_operator, "shape_color", text="")
-            
+
             # Button to create the selected shape
             layout.operator("object.create_simple_shape", text="Create Shape")
+            layout.operator("object.change_shape_color", text="Change Shape Color")
 
 
 
-       
+
+
 class CreateSimpleShapeOperator(Operator):
     bl_idname = "object.create_simple_shape"
     bl_label = "Create Simple Shape"
@@ -117,7 +114,14 @@ class CreateSimpleShapeOperator(Operator):
                ('AREA', 'Area', 'Area light')],
         default='POINT',
     )
-    
+    custom_shape_file: StringProperty(
+    name="Background Image File",
+    description="Select a background image for the camera",
+    subtype='FILE_PATH'
+    )
+
+
+
     def draw(self, context):
         layout = self.layout
         shape_type = context.scene.shape_type
@@ -135,9 +139,9 @@ class CreateSimpleShapeOperator(Operator):
             layout.prop(self, "cylinder_height")
             if self.create_light:
                 layout.prop(self, "light_type")
-
         elif shape_type == 'CUSTOM':
             layout.prop(self, "custom_shape_file")
+            layout.operator("object.set_camera_background_image", text="Set Camera Background Image", icon='IMAGE_DATA')
         elif self.create_light:
             layout.prop(self, "light_type")
 
@@ -198,7 +202,6 @@ class CreateSimpleShapeOperator(Operator):
         active_object.data.materials.append(mat)
         # Access the shape_color property through new_shape_operator
         mat.diffuse_color = context.scene.new_shape_operator.shape_color
-
         if self.create_camera:
             
             bpy.ops.object.camera_add(enter_editmode=False, align='VIEW', location=(x_coord + 5, y_coord + 5, z_coord + 5))
@@ -213,12 +216,10 @@ class CreateSimpleShapeOperator(Operator):
             elif self.light_type == 'AREA':
                 bpy.ops.object.light_add(type='AREA', radius=1, align='WORLD', location=(x_coord - 5, y_coord - 5, z_coord + 5))
 
-        
 
 
 
-
-        self.report({'INFO'}, f'Shape name: {new_name}, Position: ({x_coord}, {y_coord}, {z_coord}), Scale: {scale_factor}, Color: {context.scene.new_shape_operator.shape_color}')
+        self.report({'INFO'}, f'Shape name: {new_name}, Position: ({x_coord}, {y_coord}, {z_coord}), Scale: {scale_factor}')
 
         return {'FINISHED'}
 
@@ -232,8 +233,7 @@ class ColorProperties(bpy.types.PropertyGroup):
         min=0.0,
         max=1.0,
     )
-
-
+    
 class ImportGLBOperator(bpy.types.Operator):
     bl_idname = "object.import_glb"
     bl_label = "Import GLB"
@@ -253,6 +253,7 @@ class ImportGLBOperator(bpy.types.Operator):
     def invoke(self, context, event):
         context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
+    
 class LightPropertiesPanel(bpy.types.Panel):
     bl_label = "Light Properties"
     bl_idname = "OBJECT_PT_LightPropertiesPanel"
@@ -269,9 +270,6 @@ class LightPropertiesPanel(bpy.types.Panel):
                 layout.prop(obj.data, "type", text="Light Type")
                 layout.prop(obj.data, "color", text="Light Color")
                 layout.prop(obj.data, "energy", text="Strength")
-                
-                
-                
 class ExportPanel(bpy.types.Panel):
     bl_label = "Export Options"
     bl_idname = "OBJECT_PT_ExportPanel"
@@ -296,7 +294,6 @@ class ExportPanel(bpy.types.Panel):
 
         # Export button
         layout.operator("export_scene.export_with_options", text="Export")
-        
 class ExportWithOptionsOperator(bpy.types.Operator):
     bl_idname = "export_scene.export_with_options"
     bl_label = "Export with Custom Path, Filename, and Format"
@@ -314,33 +311,97 @@ class ExportWithOptionsOperator(bpy.types.Operator):
             self.report({'INFO'}, f'Exported {export_filename}.glb to {export_path}')
 
         return {'FINISHED'}
+                    
+class OpenCameraBackgroundImageOperator(Operator):
+    bl_idname = "object.open_camera_background_image"
+    bl_label = "Set Camera Background Image"
+
+    filepath: StringProperty(
+        subtype='FILE_PATH',
+        description="Path to the background image file",
+    )
+
+    def execute(self, context):
+        camera_object = None
+        for obj in bpy.context.scene.collection.all_objects:
+            if obj.type == 'CAMERA':
+                camera_object = obj
+                break
+
+        if camera_object is not None:
+            if self.filepath:
+                # Clear existing background images
+                camera_object.data.background_images.clear()
+
+                # Create a new background image
+                bg_image = camera_object.data.background_images.new()
+                bg_image.image = bpy.data.images.load(self.filepath)
+
+                # Show the background image in the 3D view for the camera object
+                camera_object.data.show_background_images = True
+
+                return {'FINISHED'}
+            else:
+                self.report({'ERROR'}, "No file selected for the camera background image.")
+        else:
+            self.report({'ERROR'}, "No camera found in the scene.")
+
+        return {'CANCELLED'}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+
+
+class ChangeShapeColorOperator(bpy.types.Operator):
+    bl_idname = "object.change_shape_color"
+    bl_label = "Change Shape Color"
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self, width=300)
+
+    def execute(self, context):
+        color = context.scene.new_shape_operator.shape_color
+        selected_objects = bpy.context.selected_objects
+
+        for obj in selected_objects:
+            if obj.type == 'MESH':
+                if obj.data.materials:
+                    obj.data.materials[0].diffuse_color = color
+
+        self.report({'INFO'}, f'Changed color of {len(selected_objects)} selected objects to {color}')
+        return {'FINISHED'}
+
 
 def register():
     bpy.utils.register_class(OBJECT_PT_SimpleShapeGeneratorPanel)
     bpy.utils.register_class(CreateSimpleShapeOperator)
+    bpy.utils.register_class(OpenCameraBackgroundImageOperator)
+    bpy.utils.register_class(ChangeShapeColorOperator)
     bpy.utils.register_class(ImportGLBOperator)
     bpy.utils.register_class(LightPropertiesPanel)
 
+
     bpy.types.Scene.shape_type = bpy.props.EnumProperty(
-    items=[('CIRCLE', 'Circle', 'Create a circle'),
-           ('CUBE', 'Cube', 'Create a cube'),
-           ('SPHERE', 'Sphere', 'Create a sphere'),
-           ('ICOSPHERE', 'Icosphere', 'Create an Icosphere'),
-           ('CYLINDER', 'Cylinder', 'Create a cylinder'),
-           ('CONE', 'Cone', 'Create a cone'),
-           ('PLANE', 'Plane', 'Create a plane'),
-           ('TORUS', 'Torus', 'Create a torus'),
-           ('GRID', 'Grid', 'Create a grid'),
-           ('MONKEY', 'Monkey', 'Create a monkey (Suzanne)'),
-           ('CUSTOM', 'Custom', 'Import a custom shape')],
-    name="Shape Type",
-    default='CIRCLE'
+        items=[
+            ('CIRCLE', 'Circle', 'Create a circle'),
+            ('CUBE', 'Cube', 'Create a cube'),
+            ('SPHERE', 'Sphere', 'Create a sphere'),
+            ('ICOSPHERE', 'Icosphere', 'Create an Icosphere'),
+            ('CYLINDER', 'Cylinder', 'Create a cylinder'),
+            ('CONE', 'Cone', 'Create a cone'),
+            ('PLANE', 'Plane', 'Create a plane'),
+            ('TORUS', 'Torus', 'Create a torus'),
+            ('GRID', 'Grid', 'Create a grid'),
+            ('MONKEY', 'Monkey', 'Create a monkey (Suzanne)'),
+            ('CUSTOM', 'Custom', 'Import a custom shape')],
+        name="Shape Type",
+        default='CIRCLE',
     )
 
     bpy.utils.register_class(ColorProperties)
     bpy.types.Scene.new_shape_operator = bpy.props.PointerProperty(type=ColorProperties)
-    
-    
     bpy.types.Scene.export_path = bpy.props.StringProperty(name="Export Path", default="", subtype='FILE_PATH')
     bpy.types.Scene.export_filename = bpy.props.StringProperty(name="Export Filename", default="custom_export")
     bpy.types.Scene.export_format = bpy.props.EnumProperty(
@@ -355,26 +416,23 @@ def register():
     bpy.utils.register_class(ExportPanel)
     bpy.utils.register_class(ExportWithOptionsOperator)
 
-
 def unregister():
     bpy.utils.unregister_class(OBJECT_PT_SimpleShapeGeneratorPanel)
     bpy.utils.unregister_class(CreateSimpleShapeOperator)
+    bpy.utils.unregister_class(OpenCameraBackgroundImageOperator)
+    bpy.utils.unregister_class(ChangeShapeColorOperator)
     bpy.utils.unregister_class(ImportGLBOperator)
     bpy.utils.register_class(LightPropertiesPanel)
+    bpy.utils.unregister_class(ColorProperties)
 
     del bpy.types.Scene.shape_type
-    del bpy.types.Scene.new_shape_operator
-    bpy.utils.unregister_class(ColorProperties)
-    
-    
+    del bpy.types.Scene.new_shape_name
+    del bpy.types.Scene.custom_shape_file
     bpy.utils.unregister_class(ExportPanel)
     bpy.utils.unregister_class(ExportWithOptionsOperator)  # Unregister the custom export operator
     del bpy.types.Scene.export_path
     del bpy.types.Scene.export_filename
     del bpy.types.Scene.export_format
-    
-    
-    
-    
+
 if __name__ == "__main__":
     register()
