@@ -1,5 +1,5 @@
 bl_info = {
-    "name": "Sculpture Craft 3.0",
+    "name": "Sculpture Craft 4.0",
     "author": "ut",
     "version": (1, 0),
     "blender": (2, 80, 0),
@@ -30,6 +30,8 @@ class OBJECT_PT_SimpleShapeGeneratorPanel(bpy.types.Panel):
         layout.label(text="Select Shape:")
         layout.prop(context.scene, "shape_type")
         # Conditionally show the import operator button for the "CUSTOM" shape type
+        layout.prop(context.scene.new_shape_operator, "collection_name")
+        layout.operator("object.create_new_collection", text="Create New Collection")
 
         if context.scene.shape_type == 'CUSTOM':
 
@@ -169,10 +171,19 @@ class CreateSimpleShapeOperator(Operator):
         y_coord = self.y_coordinate
         z_coord = self.z_coordinate
         scale_factor = self.scale_factor
+        collection_name = context.scene.new_shape_operator.collection_name
 
         # Validate the shape name
         if not self.validate_name(context, new_name):
             return {'CANCELLED'}
+        if collection_name not in bpy.data.collections:
+            new_collection = bpy.data.collections.new(collection_name)
+            context.scene.collection.children.link(new_collection)
+            
+        
+        bpy.ops.object.select_all(action='DESELECT')
+        
+
 
         if shape_type == 'CIRCLE':
             bpy.ops.mesh.primitive_circle_add(vertices=32, radius=1 * scale_factor, location=(x_coord, y_coord, z_coord))
@@ -218,7 +229,7 @@ class CreateSimpleShapeOperator(Operator):
 
 
 
-
+        bpy.context.collection.objects.link(bpy.context.active_object)
         self.report({'INFO'}, f'Shape name: {new_name}, Position: ({x_coord}, {y_coord}, {z_coord}), Scale: {scale_factor}')
 
         return {'FINISHED'}
@@ -232,6 +243,11 @@ class ColorProperties(bpy.types.PropertyGroup):
         default=(1.0, 0.0, 0.0, 1.0),
         min=0.0,
         max=1.0,
+    )
+    collection_name: bpy.props.StringProperty(
+        name="Collection Name",
+        description="Name of the new scene collection",
+        default="MyCollection"
     )
     
 class ImportGLBOperator(bpy.types.Operator):
@@ -372,6 +388,24 @@ class ChangeShapeColorOperator(bpy.types.Operator):
 
         self.report({'INFO'}, f'Changed color of {len(selected_objects)} selected objects to {color}')
         return {'FINISHED'}
+    
+class CreateNewCollectionOperator(bpy.types.Operator):
+    bl_idname = "object.create_new_collection"
+    bl_label = "Create New Collection"
+
+    def execute(self, context):
+        collection_name = context.scene.new_shape_operator.collection_name
+
+        # Create a new collection with the provided name
+        new_collection = bpy.data.collections.new(collection_name)
+        context.scene.collection.children.link(new_collection)
+
+        # Link the selected objects to the new collection
+        for obj in context.selected_objects:
+            new_collection.objects.link(obj)
+
+        self.report({'INFO'}, f'Created a new collection: {collection_name}')
+        return {'FINISHED'}
 
 
 def register():
@@ -381,6 +415,7 @@ def register():
     bpy.utils.register_class(ChangeShapeColorOperator)
     bpy.utils.register_class(ImportGLBOperator)
     bpy.utils.register_class(LightPropertiesPanel)
+    bpy.utils.register_class(CreateNewCollectionOperator)
 
 
     bpy.types.Scene.shape_type = bpy.props.EnumProperty(
@@ -424,10 +459,11 @@ def unregister():
     bpy.utils.unregister_class(ImportGLBOperator)
     bpy.utils.register_class(LightPropertiesPanel)
     bpy.utils.unregister_class(ColorProperties)
+    bpy.utils.unregister_class(CreateNewCollectionOperator)
 
     del bpy.types.Scene.shape_type
-    del bpy.types.Scene.new_shape_name
-    del bpy.types.Scene.custom_shape_file
+    del bpy.types.Scene.new_shape_operator
+
     bpy.utils.unregister_class(ExportPanel)
     bpy.utils.unregister_class(ExportWithOptionsOperator)  # Unregister the custom export operator
     del bpy.types.Scene.export_path
