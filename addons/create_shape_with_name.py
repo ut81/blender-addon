@@ -1,5 +1,5 @@
 bl_info = {
-    "name": "Sculpture Craft 4.0",
+    "name": "Sculpture Craft 5.0",
     "author": "ut",
     "version": (1, 0),
     "blender": (2, 80, 0),
@@ -11,7 +11,7 @@ bl_info = {
 }
 
 import bpy
-from bpy.types import Operator
+from bpy.types import Operator,Panel
 from bpy.props import StringProperty, FloatProperty,FloatVectorProperty
 import os
 
@@ -32,6 +32,7 @@ class OBJECT_PT_SimpleShapeGeneratorPanel(bpy.types.Panel):
         # Conditionally show the import operator button for the "CUSTOM" shape type
         layout.prop(context.scene.new_shape_operator, "collection_name")
         layout.operator("object.create_new_collection", text="Create New Collection")
+        layout.operator("object.create_speaker", text="Create Speaker")
 
         if context.scene.shape_type == 'CUSTOM':
 
@@ -52,6 +53,9 @@ class OBJECT_PT_SimpleShapeGeneratorPanel(bpy.types.Panel):
             # Button to create the selected shape
             layout.operator("object.create_simple_shape", text="Create Shape")
             layout.operator("object.change_shape_color", text="Change Shape Color")
+            if context.active_object and context.active_object.type == 'CAMERA':
+                
+                layout.operator("object.camera_properties", text="Camera Properties")
 
 
 
@@ -406,6 +410,57 @@ class CreateNewCollectionOperator(bpy.types.Operator):
 
         self.report({'INFO'}, f'Created a new collection: {collection_name}')
         return {'FINISHED'}
+class CreateSpeakerOperator(Operator):
+    bl_idname = "object.create_speaker"
+    bl_label = "Create Speaker"
+    
+    def execute(self, context):
+        # Create the speaker using bpy.ops.object.speaker_add
+        bpy.ops.object.speaker_add(enter_editmode=False, align='WORLD', location=context.scene.cursor.location, scale=(1, 1, 1))
+        
+        # Rename the newly created object to "Speaker"
+        bpy.context.active_object.name = "Speaker"
+        
+        return {'FINISHED'}
+
+class CameraPropertiesOperator(Operator):
+    bl_idname = "object.camera_properties"
+    bl_label = "Camera Properties"
+    
+    def execute(self, context):
+        return {'FINISHED'}
+class CameraPropertiesPanel(Panel):
+    bl_label = "Camera Properties"
+    bl_idname = "OBJECT_PT_CameraPropertiesPanel"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Tool'
+
+    def draw(self, context):
+        layout = self.layout
+        camera_object = context.active_object
+
+        if camera_object and camera_object.type == 'CAMERA':
+            camera_data = camera_object.data
+
+            layout.label(text="Lens Type:")
+            layout.prop(camera_data, "type", text="")
+
+            layout.label(text="Lens Unit:")
+            layout.prop(camera_data, "lens_unit", text="")
+
+            if camera_data.lens_unit == 'MILLIMETERS':
+                layout.label(text="Focal Length:")
+                layout.prop(camera_data, "lens", text="")
+            elif camera_data.lens_unit == 'FOV':
+                layout.label(text="Field of View:")
+                layout.prop(camera_data, "angle", text="")
+                
+            layout.label(text="Shift X:")
+            layout.prop(camera_data, "shift_x", text="")
+
+            layout.label(text="Shift Y:")
+            layout.prop(camera_data, "shift_y", text="")
 
 
 def register():
@@ -416,6 +471,11 @@ def register():
     bpy.utils.register_class(ImportGLBOperator)
     bpy.utils.register_class(LightPropertiesPanel)
     bpy.utils.register_class(CreateNewCollectionOperator)
+    bpy.utils.register_class(CreateSpeakerOperator)
+    bpy.utils.register_class(CameraPropertiesOperator)
+    bpy.utils.register_class(CameraPropertiesPanel)
+
+
 
 
     bpy.types.Scene.shape_type = bpy.props.EnumProperty(
@@ -460,6 +520,10 @@ def unregister():
     bpy.utils.register_class(LightPropertiesPanel)
     bpy.utils.unregister_class(ColorProperties)
     bpy.utils.unregister_class(CreateNewCollectionOperator)
+    bpy.utils.unregister_class(CreateSpeakerOperator)
+    bpy.utils.unregister_class(CameraPropertiesOperator)
+    bpy.utils.unregister_class(CameraPropertiesPanel)
+
 
     del bpy.types.Scene.shape_type
     del bpy.types.Scene.new_shape_operator
