@@ -1,8 +1,8 @@
 bl_info = {
-    "name": "Sculpture Craft 5.0",
+    "name": "Sculpture Craft 5.1",
     "author": "ut",
     "version": (1, 0),
-    "blender": (2, 80, 0),
+    "blender": (3, 6, 5),
     "location": "View3D > Add > Mesh > New Object",
     "description": "Adds a new color Mesh Object",
     "warning": "",
@@ -165,7 +165,7 @@ class CreateSimpleShapeOperator(Operator):
         return True
 
     def invoke(self, context, event):
-        # Open the custom modal dialog to get the shape name and coordinates
+        
         return context.window_manager.invoke_props_dialog(self, width=300)
 
     def execute(self, context):
@@ -177,7 +177,7 @@ class CreateSimpleShapeOperator(Operator):
         scale_factor = self.scale_factor
         collection_name = context.scene.new_shape_operator.collection_name
 
-        # Validate the shape name
+        
         if not self.validate_name(context, new_name):
             return {'CANCELLED'}
         if collection_name not in bpy.data.collections:
@@ -208,14 +208,14 @@ class CreateSimpleShapeOperator(Operator):
         elif shape_type == 'ICOSPHERE':
             bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=1 * scale_factor, location=(x_coord, y_coord, z_coord))
 
-        # Rename the newly created object
+    
         bpy.context.active_object.name = new_name
 
         active_object = bpy.context.active_object
         active_object.data.materials.clear()
         mat = bpy.data.materials.new(name="Shape_Material")
         active_object.data.materials.append(mat)
-        # Access the shape_color property through new_shape_operator
+        
         mat.diffuse_color = context.scene.new_shape_operator.shape_color
         if self.create_camera:
             
@@ -400,11 +400,11 @@ class CreateNewCollectionOperator(bpy.types.Operator):
     def execute(self, context):
         collection_name = context.scene.new_shape_operator.collection_name
 
-        # Create a new collection with the provided name
+        
         new_collection = bpy.data.collections.new(collection_name)
         context.scene.collection.children.link(new_collection)
 
-        # Link the selected objects to the new collection
+        
         for obj in context.selected_objects:
             new_collection.objects.link(obj)
 
@@ -415,10 +415,10 @@ class CreateSpeakerOperator(Operator):
     bl_label = "Create Speaker"
     
     def execute(self, context):
-        # Create the speaker using bpy.ops.object.speaker_add
+        
         bpy.ops.object.speaker_add(enter_editmode=False, align='WORLD', location=context.scene.cursor.location, scale=(1, 1, 1))
         
-        # Rename the newly created object to "Speaker"
+    
         bpy.context.active_object.name = "Speaker"
         
         return {'FINISHED'}
@@ -429,6 +429,8 @@ class CameraPropertiesOperator(Operator):
     
     def execute(self, context):
         return {'FINISHED'}
+    
+
 class CameraPropertiesPanel(Panel):
     bl_label = "Camera Properties"
     bl_idname = "OBJECT_PT_CameraPropertiesPanel"
@@ -461,6 +463,8 @@ class CameraPropertiesPanel(Panel):
 
             layout.label(text="Shift Y:")
             layout.prop(camera_data, "shift_y", text="")
+            layout.operator("render.render", text="Render Image", icon='RENDER_STILL')
+
 
 
 def register():
@@ -474,6 +478,7 @@ def register():
     bpy.utils.register_class(CreateSpeakerOperator)
     bpy.utils.register_class(CameraPropertiesOperator)
     bpy.utils.register_class(CameraPropertiesPanel)
+    
 
 
 
@@ -523,13 +528,14 @@ def unregister():
     bpy.utils.unregister_class(CreateSpeakerOperator)
     bpy.utils.unregister_class(CameraPropertiesOperator)
     bpy.utils.unregister_class(CameraPropertiesPanel)
+    
 
 
     del bpy.types.Scene.shape_type
     del bpy.types.Scene.new_shape_operator
 
     bpy.utils.unregister_class(ExportPanel)
-    bpy.utils.unregister_class(ExportWithOptionsOperator)  # Unregister the custom export operator
+    bpy.utils.unregister_class(ExportWithOptionsOperator)  
     del bpy.types.Scene.export_path
     del bpy.types.Scene.export_filename
     del bpy.types.Scene.export_format
