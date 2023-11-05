@@ -1,5 +1,5 @@
 bl_info = {
-    "name": "Sculpture Craft 5.0",
+    "name": "load image with url",
     "author": "ut",
     "version": (1, 0),
     "blender": (2, 80, 0),
