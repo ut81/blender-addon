@@ -233,7 +233,7 @@ class CreateSimpleShapeOperator(Operator):
 
 
 
-        bpy.context.collection.objects.link(bpy.context.active_object)
+        # bpy.context.collection.objects.link(bpy.context.active_object)
         self.report({'INFO'}, f'Shape name: {new_name}, Position: ({x_coord}, {y_coord}, {z_coord}), Scale: {scale_factor}')
 
         return {'FINISHED'}
