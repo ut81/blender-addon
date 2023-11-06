@@ -1,5 +1,5 @@
 bl_info = {
-    "name": "Sculpture Craft 5.1",
+    "name": "Sculpture Craft 5.",
     "author": "ut",
     "version": (1, 0),
     "blender": (3, 6, 5),
@@ -467,6 +467,54 @@ class CameraPropertiesPanel(Panel):
 
 
 
+def fetch_obj_files(folder_path):
+    obj_files = []
+    for root, dirs, files in os.walk(folder_path):
+        for file in files:
+            if file.endswith(".obj"):
+                obj_files.append(os.path.join(root, file))
+    return obj_files
+# Define a dictionary to store presets (name: 3D model file path)
+presets = {}
+
+class OBJECT_PT_PresetsPanel(bpy.types.Panel):
+    bl_label = "Presets and Templates"
+    bl_idname = "OBJECT_PT_PresetsPanel"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Tool'
+
+    def draw(self, context):
+        layout = self.layout
+
+        # Input field for presets folder path
+        layout.prop(context.scene, "presets_folder_path", text="Presets Folder")
+
+        layout.label(text="Apply Presets:")
+
+        # Fetch presets if folder path is provided
+        if context.scene.presets_folder_path:
+            presets = {os.path.splitext(os.path.basename(file))[0]: file for file in fetch_obj_files(context.scene.presets_folder_path)}
+            for preset_name, model_path in presets.items():
+                layout.operator("object.apply_preset", text=preset_name).model_path = model_path
+                
+class ApplyPresetOperator(bpy.types.Operator):
+    bl_idname = "object.apply_preset"
+    bl_label = "Apply Preset"
+    
+    model_path: bpy.props.StringProperty()
+    
+    def execute(self, context):
+        model_path = self.model_path
+        
+        # Import the 3D model
+        bpy.ops.import_scene.obj(filepath=model_path)
+        
+        return {'FINISHED'}
+
+
+
+
 def register():
     bpy.utils.register_class(OBJECT_PT_SimpleShapeGeneratorPanel)
     bpy.utils.register_class(CreateSimpleShapeOperator)
@@ -515,6 +563,16 @@ def register():
 
     bpy.utils.register_class(ExportPanel)
     bpy.utils.register_class(ExportWithOptionsOperator)
+    
+    
+    bpy.utils.register_class(OBJECT_PT_PresetsPanel)
+    bpy.utils.register_class(ApplyPresetOperator)
+    bpy.types.Scene.presets_folder_path = bpy.props.StringProperty(
+        name="Presets Folder",
+        description="Path to the folder containing presets (.obj files)",
+        subtype='DIR_PATH'
+    )
+
 
 def unregister():
     bpy.utils.unregister_class(OBJECT_PT_SimpleShapeGeneratorPanel)
@@ -539,6 +597,11 @@ def unregister():
     del bpy.types.Scene.export_path
     del bpy.types.Scene.export_filename
     del bpy.types.Scene.export_format
+    
+    
+    bpy.utils.unregister_class(OBJECT_PT_PresetsPanel)
+    bpy.utils.unregister_class(ApplyPresetOperator)
+    del bpy.types.Scene.presets_folder_path
 
 if __name__ == "__main__":
     register()
