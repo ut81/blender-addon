@@ -1,5 +1,5 @@
 bl_info = {
-    "name": "Sculpture Craft 5.",
+    "name": "Sculpture Craft 5.3",
     "author": "ut",
     "version": (1, 0),
     "blender": (3, 6, 5),
@@ -14,6 +14,8 @@ import bpy
 from bpy.types import Operator,Panel
 from bpy.props import StringProperty, FloatProperty,FloatVectorProperty
 import os
+from bpy.props import BoolProperty
+from bpy_extras.io_utils import ExportHelper
 
 class OBJECT_PT_SimpleShapeGeneratorPanel(bpy.types.Panel):
 
@@ -33,6 +35,7 @@ class OBJECT_PT_SimpleShapeGeneratorPanel(bpy.types.Panel):
         layout.prop(context.scene.new_shape_operator, "collection_name")
         layout.operator("object.create_new_collection", text="Create New Collection")
         layout.operator("object.create_speaker", text="Create Speaker")
+       
 
         if context.scene.shape_type == 'CUSTOM':
 
@@ -53,6 +56,9 @@ class OBJECT_PT_SimpleShapeGeneratorPanel(bpy.types.Panel):
             # Button to create the selected shape
             layout.operator("object.create_simple_shape", text="Create Shape")
             layout.operator("object.change_shape_color", text="Change Shape Color")
+             # Export path and save button
+            layout.prop(context.scene.new_shape_operator, "export_path")
+            layout.operator("object.save_shape", text="Save Shape")
             if context.active_object and context.active_object.type == 'CAMERA':
                 
                 layout.operator("object.camera_properties", text="Camera Properties")
@@ -235,7 +241,7 @@ class CreateSimpleShapeOperator(Operator):
 
         # bpy.context.collection.objects.link(bpy.context.active_object)
         self.report({'INFO'}, f'Shape name: {new_name}, Position: ({x_coord}, {y_coord}, {z_coord}), Scale: {scale_factor}')
-
+        
         return {'FINISHED'}
 
 
@@ -252,6 +258,17 @@ class ColorProperties(bpy.types.PropertyGroup):
         name="Collection Name",
         description="Name of the new scene collection",
         default="MyCollection"
+    )
+    export_path: bpy.props.StringProperty(
+        name="Export Path",
+        description="Path to save the object (.obj file)",
+        subtype='FILE_PATH',
+        default="",
+    )
+    shape_name: bpy.props.StringProperty(
+        name="Shape Name",
+        description="Enter a name for the shape",
+        default="MyShape",
     )
     
 class ImportGLBOperator(bpy.types.Operator):
@@ -514,6 +531,118 @@ class ApplyPresetOperator(bpy.types.Operator):
 
 
 
+favorite_shapes = {}
+
+class OBJECT_PT_FavoriteShapesPanel(bpy.types.Panel):
+    bl_label = "Favorite Shapes"
+    bl_idname = "OBJECT_PT_FavoriteShapesPanel"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Favorite Shapes'
+
+    def draw(self, context):
+        layout = self.layout
+
+        # Input field for favorite shapes folder path
+        layout.label(text="Favorite Shapes:")
+        layout.operator("object.store_favorite_shape", text="Store Favorite Shape")
+
+        # Fetch favorite shapes
+        for shape_name, _ in favorite_shapes.items():
+            layout.operator("object.apply_favorite_shape", text=shape_name).shape_name = shape_name
+class StoreFavoriteShapeOperator(bpy.types.Operator):
+    bl_idname = "object.store_favorite_shape"
+    bl_label = "Store Favorite Shape"
+
+    def execute(self, context):
+        selected_objects = bpy.context.selected_objects
+
+        if selected_objects:
+            # Store the selected object(s) data as a favorite shape
+            shape_name = "Shape_" + str(len(favorite_shapes) + 1)
+            favorite_shapes[shape_name] = [obj.location.copy() for obj in selected_objects]
+            self.report({'INFO'}, f'Stored {len(selected_objects)} object(s) as {shape_name} favorite shape.')
+        else:
+            self.report({'ERROR'}, 'No object selected to store as a favorite shape.')
+
+        return {'FINISHED'}
+    
+class ApplyFavoriteShapeOperator(bpy.types.Operator):
+    bl_idname = "object.apply_favorite_shape"
+    bl_label = "Apply Favorite Shape"
+
+    shape_name: bpy.props.StringProperty()
+
+    def execute(self, context):
+        shape_name = self.shape_name
+
+        if shape_name in favorite_shapes:
+            # Apply the selected favorite shape by recreating the stored object(s) in the scene
+            stored_locations = favorite_shapes[shape_name]
+
+            for i, location in enumerate(stored_locations):
+                bpy.ops.object.create_simple_shape(
+                    new_shape_name=f"{shape_name}_{i+1}",
+                    x_coordinate=location.x,
+                    y_coordinate=location.y,
+                    z_coordinate=location.z,
+                )
+
+            self.report({'INFO'}, f'Applied {shape_name} favorite shape.')
+        else:
+            self.report({'ERROR'}, f'Favorite shape {shape_name} not found.')
+
+        return {'FINISHED'}
+    
+
+
+class SaveShapeOperator(bpy.types.Operator):
+    bl_idname = "object.save_shape"
+    bl_label = "Save Shape"
+
+    def invoke(self, context, event):
+        wm = context.window_manager
+        return wm.invoke_props_dialog(self, width=300)
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(context.scene.new_shape_operator, "export_path")
+        layout.prop(context.scene.new_shape_operator, "shape_name")
+
+    def execute(self, context):
+        # Ensure the active object is a mesh
+        if context.active_object and context.active_object.type == 'MESH':
+            # Get the shape properties
+            shape_name = context.scene.new_shape_operator.shape_name
+            directory = context.scene.new_shape_operator.export_path
+            filename = shape_name + ".obj"
+            filepath = os.path.join(directory, filename)
+
+            # Create a new material and assign color
+            color = context.scene.new_shape_operator.shape_color
+            mat = bpy.data.materials.new(name="Shape_Material")
+            mat.diffuse_color = color
+            context.active_object.data.materials.clear()
+            context.active_object.data.materials.append(mat)
+
+            # Export the mesh data along with the object data
+            bpy.ops.export_scene.obj(
+                filepath=filepath,
+                use_selection=True,
+                use_materials=True,  # Include materials in the export
+                use_mesh_modifiers=True,  # Apply modifiers to mesh data
+                use_triangles=True,  # Export triangles instead of quads
+                use_normals=True,  # Export normals
+                use_smooth_groups=True,  # Smooth groups
+                use_edges=True,  # Export edges
+            )
+
+            self.report({'INFO'}, f'Saved shape to {filepath}')
+            return {'FINISHED'}
+        else:
+            self.report({'ERROR'}, "No mesh object selected.")
+            return {'CANCELLED'}
+
 
 def register():
     bpy.utils.register_class(OBJECT_PT_SimpleShapeGeneratorPanel)
@@ -526,7 +655,8 @@ def register():
     bpy.utils.register_class(CreateSpeakerOperator)
     bpy.utils.register_class(CameraPropertiesOperator)
     bpy.utils.register_class(CameraPropertiesPanel)
-    
+    bpy.utils.register_class(SaveShapeOperator)
+
 
 
 
@@ -572,6 +702,16 @@ def register():
         description="Path to the folder containing presets (.obj files)",
         subtype='DIR_PATH'
     )
+    
+    
+    bpy.utils.register_class(OBJECT_PT_FavoriteShapesPanel)
+    bpy.utils.register_class(StoreFavoriteShapeOperator)
+    bpy.utils.register_class(ApplyFavoriteShapeOperator)
+    bpy.types.Scene.favorite_shapes_folder_path = bpy.props.StringProperty(
+        name="Favorite Shapes Folder",
+        description="Path to the folder containing favorite shapes (.obj files)",
+        subtype='DIR_PATH'
+    )
 
 
 def unregister():
@@ -586,6 +726,8 @@ def unregister():
     bpy.utils.unregister_class(CreateSpeakerOperator)
     bpy.utils.unregister_class(CameraPropertiesOperator)
     bpy.utils.unregister_class(CameraPropertiesPanel)
+    bpy.utils.unregister_class(SaveShapeOperator)
+
     
 
 
@@ -602,6 +744,11 @@ def unregister():
     bpy.utils.unregister_class(OBJECT_PT_PresetsPanel)
     bpy.utils.unregister_class(ApplyPresetOperator)
     del bpy.types.Scene.presets_folder_path
+    
+    bpy.utils.unregister_class(OBJECT_PT_FavoriteShapesPanel)
+    bpy.utils.unregister_class(StoreFavoriteShapeOperator)
+    bpy.utils.unregister_class(ApplyFavoriteShapeOperator)
+    del bpy.types.Scene.favorite_shapes_folder_path
 
 if __name__ == "__main__":
     register()
